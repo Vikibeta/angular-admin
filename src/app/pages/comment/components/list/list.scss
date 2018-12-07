@@ -1,4 +1,4 @@
-@import "~@/app/theme/sass/conf/conf";
+@import "~app/theme/sass/conf/conf";
 
 .comment-search-form {
   
@@ -11,6 +11,7 @@
 }
 
 .comment-list {
+  position: relative;
 
   .batch-checkbox {
 

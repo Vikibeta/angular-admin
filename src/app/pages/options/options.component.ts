@@ -1,188 +1,254 @@
-import {Component, ViewEncapsulation} from '@angular/core';
-import { FormGroup, AbstractControl, FormBuilder, Validators } from '@angular/forms';
-import { OptionsService } from './options.service';
+/**
+ * @file 全局设置页面组件
+ * @module app/page/options/component
+ * @author Surmon <https://github.com/surmon-china>
+ */
+
+import * as lodash from 'lodash';
+import { Base64 } from 'js-base64';
+import { Router } from '@angular/router';
+import { Component, ViewEncapsulation, OnInit } from '@angular/core';
+import { FormGroup, AbstractControl, FormBuilder, Validators, ValidationErrors } from '@angular/forms';
+
+import * as API_PATH from '@app/constants/api';
+import { SaHttpRequesterService } from '@app/services';
+import { TApiPath, IFetching } from '@app/pages/pages.constants';
+import { mergeFormControlsToInstance, formControlStateClass } from '@/app/pages/pages.service';
+
+interface IAuth {
+  name: string;
+  slogan: string;
+  gravatar?: string;
+  password?: string;
+  new_password?: string;
+  rel_new_password?: string;
+}
+
+const DEFAULT_AUTH_FORM = {
+  name: '',
+  slogan: '',
+  gravatar: '',
+  password: '',
+  new_password: '',
+  rel_new_password: ''
+};
+
+const DEFAULT_OPTION_FORM = {
+  _id: null,
+  title: '',
+  sub_title: '',
+  keywords: [],
+  description: '',
+  site_url: '',
+  site_email: '',
+  site_icp: '',
+  seo_ping_sites: [],
+  blacklist_ips: [],
+  blacklist_mails: [],
+  blacklist_keywords: []
+};
 
 @Component({
-  selector: 'options',
+  selector: 'page-options',
   encapsulation: ViewEncapsulation.Emulated,
   styles: [require('./options.scss')],
-  template: require('./options.html'),
+  template: require('./options.html')
 })
-export class Options {
+export class OptionsComponent implements OnInit {
 
-	// authForm
-	public authForm:FormGroup;
-	public name:AbstractControl;
-	public slogan:AbstractControl;
-	public gravatar:AbstractControl;
-	public password:AbstractControl;
-	public new_password:AbstractControl;
-	public rel_new_password:AbstractControl;
+  controlStateClass = formControlStateClass;
 
-	// optionForm
-	public optionForm:FormGroup;
-	public _id:AbstractControl;
-	public title:AbstractControl;
-  public sub_title:AbstractControl;
-  public keywords:AbstractControl;
-  public description:AbstractControl;
-  public site_url:AbstractControl;
-  public site_email:AbstractControl;
-  public site_icp:AbstractControl;
-  public seo_ping_sites:AbstractControl;
-  public blacklist_ips:AbstractControl;
-  public blacklist_mails:AbstractControl;
-  public blacklist_keywords:AbstractControl;
+  // api
+  private _authApiPath: TApiPath = API_PATH.AUTH;
+  private _optionApiPath: TApiPath = API_PATH.OPTION;
 
-  constructor(private _fb: FormBuilder,
-  						private _optionsService: OptionsService) {
+  public fetching: IFetching = {
+    auth: false,
+    option: false
+  };
 
-  	// authForm
-		this.authForm = _fb.group({
-			'name': ['', Validators.compose([Validators.required])],
-			'slogan': ['', Validators.compose([Validators.required])],
-			'gravatar': ['', Validators.compose([Validators.required])],
-			'password': [''],
-			'new_password': [''],
-			'rel_new_password': [''],
-		});
-		this.name = this.authForm.controls['name'];
-		this.slogan = this.authForm.controls['slogan'];
-		this.gravatar = this.authForm.controls['gravatar'];
-		this.password = this.authForm.controls['password'];
-		this.new_password = this.authForm.controls['new_password'];
-		this.rel_new_password = this.authForm.controls['rel_new_password'];
+  // authForm
+  public authForm: FormGroup;
+  public name: AbstractControl;
+  public slogan: AbstractControl;
+  public gravatar: AbstractControl;
+  public password: AbstractControl;
+  public new_password: AbstractControl;
+  public rel_new_password: AbstractControl;
 
-		// optionForm
-		this.optionForm = _fb.group({
-			'_id': [null],
-			'title': [''],
-			'sub_title': [''],
-			'keywords': [[]],
-			'description': [''],
-			'site_url': [''],
-			'site_email': ['', Validators.compose([Validators.pattern('([a-zA-Z0-9_-])+@([a-zA-Z0-9_-])+(.[a-zA-Z0-9_-])+')])],
-			'site_icp': [''],
-			'seo_ping_sites': [[]],
-			'blacklist_ips': [[]],
-			'blacklist_mails': [[]],
-			'blacklist_keywords': [[]]
-		});
-		this._id = this.optionForm.controls['_id'];
-		this.title = this.optionForm.controls['title'];
-		this.sub_title = this.optionForm.controls['sub_title'];
-		this.keywords = this.optionForm.controls['keywords'];
-		this.description = this.optionForm.controls['description'];
-		this.site_url = this.optionForm.controls['site_url'];
-		this.site_email = this.optionForm.controls['site_email'];
-		this.site_icp = this.optionForm.controls['site_icp'];
-		this.seo_ping_sites = this.optionForm.controls['seo_ping_sites'];
-		this.blacklist_ips = this.optionForm.controls['blacklist_ips'];
-		this.blacklist_mails = this.optionForm.controls['blacklist_mails'];
-		this.blacklist_keywords = this.optionForm.controls['blacklist_keywords'];
-	}
+  // optionForm
+  public optionForm: FormGroup;
+  public _id: AbstractControl;
+  public title: AbstractControl;
+  public sub_title: AbstractControl;
+  public keywords: AbstractControl;
+  public description: AbstractControl;
+  public site_url: AbstractControl;
+  public site_email: AbstractControl;
+  public site_icp: AbstractControl;
+  public seo_ping_sites: AbstractControl;
+  public blacklist_ips: AbstractControl;
+  public blacklist_mails: AbstractControl;
+  public blacklist_keywords: AbstractControl;
 
-	// ping地址解析处理
-	public pingSitesChangeHandle(event) {
-		const newData = event.target.value.replace(/\s+/g, ' ').replace(/\s/g, '\n');
-		this.seo_ping_sites.setValue(newData);
-	}
+  constructor(private _router: Router,
+              private _fb: FormBuilder,
+              private _httpService: SaHttpRequesterService) {
 
-	// 黑名单ip解析处理
-	public commentBlacklistIpsChangeHandle(event) {
-		const newData = event.target.value.replace(/\s+/g, ' ').replace(/\s/g, '\n');
-		this.blacklist_ips.setValue(newData);
-	}
+    // authForm
+    this.authForm = this._fb.group({
+      name: [DEFAULT_AUTH_FORM.name, Validators.compose([Validators.required])],
+      slogan: [DEFAULT_AUTH_FORM.slogan, Validators.compose([Validators.required])],
+      gravatar: [DEFAULT_AUTH_FORM.gravatar],
+      password: [DEFAULT_AUTH_FORM.password],
+      new_password: [DEFAULT_AUTH_FORM.new_password],
+      rel_new_password: [DEFAULT_AUTH_FORM.rel_new_password],
+    });
+    mergeFormControlsToInstance(this, this.authForm);
 
-	// 黑名单邮箱解析处理
-	public commentBlacklistMailsChangeHandle(event) {
-		const newData = event.target.value.replace(/\s+/g, ' ').replace(/\s/g, '\n');
-		this.blacklist_mails.setValue(newData);
-	}
+    // optionForm
+    this.optionForm = this._fb.group({
+      _id: [DEFAULT_OPTION_FORM._id],
+      title: [DEFAULT_OPTION_FORM.title, Validators.compose([Validators.required])],
+      sub_title: [DEFAULT_OPTION_FORM.sub_title, Validators.compose([Validators.required])],
+      keywords: [DEFAULT_OPTION_FORM.keywords, Validators.compose([Validators.required])],
+      description: [DEFAULT_OPTION_FORM.description, Validators.compose([Validators.required])],
+      site_url: [DEFAULT_OPTION_FORM.site_url, Validators.compose([Validators.required])],
+      site_email: [
+        DEFAULT_OPTION_FORM.site_email,
+        Validators.compose([Validators.pattern('([a-zA-Z0-9_-])+@([a-zA-Z0-9_-])+(.[a-zA-Z0-9_-])+')])
+      ],
+      site_icp: [DEFAULT_OPTION_FORM.site_icp],
+      seo_ping_sites: [DEFAULT_OPTION_FORM.seo_ping_sites],
+      blacklist_ips: [DEFAULT_OPTION_FORM.blacklist_ips],
+      blacklist_mails: [DEFAULT_OPTION_FORM.blacklist_mails],
+      blacklist_keywords: [DEFAULT_OPTION_FORM.blacklist_keywords]
+    });
+    mergeFormControlsToInstance(this, this.optionForm);
+  }
 
-	// 黑名单关键词解析处理
-	public commentBlacklistKeywordsChangeHandle(event) {
-		const newData = event.target.value.replace(/\s+/g, ' ').replace(/\s/g, '\n');
-		this.blacklist_keywords.setValue(newData);
-	}
+  // 长数据处理器
+  public formatLongString(value: string): string {
+    return value.replace(/\s+/g, ' ').replace(/\s/g, '\n');
+  }
 
-	// 关键词计息处理
-	public keywordsChangeHandle(event) {
-		const newWords = event.target.value.replace(/\s/g, '').split(',');
-  	this.keywords.setValue(newWords);
-	}
+  // ping 地址解析处理
+  public handlePingSitesChange(event) {
+    this.seo_ping_sites.setValue(this.formatLongString(event.target.value));
+  }
 
-	// 提交权限表单
-	public submitAuthForm(values: any) {
-		if (this.authForm.valid) {
-			this.putAuth(this.authForm.value);
-		}
-	}
+  // 黑名单 ip 解析处理
+  public handleCommentBlacklistIpsChange(event) {
+    this.blacklist_ips.setValue(this.formatLongString(event.target.value));
+  }
 
-	// 提交设置表单
-	public submitOptionForm(values: any) {
-		if (this.optionForm.valid) {
-			const formValue = Object.assign({
-				ping_sites: new String(this.seo_ping_sites.value).split('\n').filter(t => !!t),
-				blacklist: {
-					ips: new String(this.blacklist_ips.value).split('\n').filter(t => !!t),
-					mails: new String(this.blacklist_mails.value).split('\n').filter(t => !!t),
-					keywords: new String(this.blacklist_keywords.value).split('\n').filter(t => !!t)
-				}
-			}, this.optionForm.value)
-			this.putOptions(formValue);
-		}
-	}
+  // 黑名单邮箱解析处理
+  public handleCommentBlacklistMailsChange(event) {
+    this.blacklist_mails.setValue(this.formatLongString(event.target.value));
+  }
 
-	// 解析返回的权限表单数据
-	public handleAuthChange = userAuthPromise => {
-		userAuthPromise.then(({ result: { name, slogan, gravatar }}) => {
-			this.authForm.reset({
-				name,
-				slogan,
-				gravatar,
-				password: '',
-				new_password: '',
-				rel_new_password: ''
-			});
-		})
-		.catch(error => {});
-	}
+  // 黑名单关键词解析处理
+  public handleCommentBlacklistKeywordsChange(event) {
+    this.blacklist_keywords.setValue(this.formatLongString(event.target.value));
+  }
 
-	// 解析返回的设置表单数据
-	public handleOptionChange = optionPromise => {
-		optionPromise.then(({ result: options }) => {
-			options.seo_ping_sites = options.ping_sites.toString().replace(/,/g, '\n');
-			options.blacklist_ips = options.blacklist.ips.toString().replace(/,/g, '\n');
-			options.blacklist_mails = options.blacklist.mails.toString().replace(/,/g, '\n');
-			options.blacklist_keywords = options.blacklist.keywords.toString().replace(/,/g, '\n');
-			this.optionForm.reset(options);
-		})
-		.catch(error => {});
-	}
+  // 关键词计息处理
+  public handleKeywordsChange(event) {
+    const newWords = event.target.value.replace(/\s/g, '').split(',');
+    this.keywords.setValue(newWords);
+  }
 
-	// 获取用户
-	public getUserAuth() {
-		this.handleAuthChange(this._optionsService.getUserAuth());
-	}
+  // 提交权限表单
+  public submitAuthForm() {
+    if (!this.authForm.valid) {
+      return false;
+    }
+    const authFormData = lodash.cloneDeep(this.authForm.value);
+    Object.keys(authFormData).forEach(key => {
+      const value = authFormData[key];
+      const isPassword = key.includes('password');
+      authFormData[key] = isPassword ? Base64.encode(value) : value;
+    });
+    this.putAuth(authFormData);
+  }
 
-	// 更新用户
-	public putAuth(auth: any) {
-		this.handleAuthChange(this._optionsService.putAuth(auth));
-	}
+  // 提交设置表单
+  public submitOptionForm() {
+    if (!this.optionForm.valid) {
+      return false;
+    }
+    const format = value => String(value).split('\n').filter(t => !!t);
+    const formValue = Object.assign({
+      ping_sites: format(this.seo_ping_sites.value),
+      blacklist: {
+        ips: format(this.blacklist_ips.value),
+        mails: format(this.blacklist_mails.value),
+        keywords: format(this.blacklist_keywords.value)
+      }
+    }, this.optionForm.value);
+    this.putOptions(formValue);
+  }
 
-	// 获取配置
-	public getOptions() {
-		this.handleOptionChange(this._optionsService.getOptions());
-	}
+  // 解析返回的权限表单数据
+  public handleAuthChange = userAuthPromise => {
+    userAuthPromise.then(({ result: { name, slogan, gravatar }}) => {
+      if (this.authForm.value.rel_new_password) {
+        // tslint:disable-next-line:no-console
+        console.info('密码更新成功，正跳转至登陆页');
+        setTimeout(() => this._router.navigate(['/auth']), 960);
+      } else {
+        this.fetching.auth = false;
+        this.authForm.reset(Object.assign({}, DEFAULT_AUTH_FORM, { name, slogan, gravatar }));
+      }
+    })
+    .catch(_ => {
+      this.fetching.auth = false;
+    });
+  }
 
-	// 更新配置
-	public putOptions(options: any) {
-		this.handleOptionChange(this._optionsService.putOptions(options));
-	}
+  // 解析返回的设置表单数据
+  public handleOptionChange = (optionPromise: Promise<any>) => {
+    return optionPromise
+      .then(({ result: options }) => {
+        const format = value => value.toString().replace(/,/g, '\n');
+        options.seo_ping_sites = format(options.ping_sites);
+        options.blacklist_ips = format(options.blacklist.ips);
+        options.blacklist_mails = format(options.blacklist.mails);
+        options.blacklist_keywords = format(options.blacklist.keywords);
+        this.optionForm.reset(options);
+        this.fetching.option = false;
+      })
+      .catch(_ => {
+        this.fetching.option = false;
+      });
+  }
 
-	ngOnInit() {
-		this.getOptions();
-		this.getUserAuth();
-	}
+  // 获取用户
+  public getUserAuth() {
+    this.fetching.auth = true;
+    this.handleAuthChange(this._httpService.get(this._authApiPath));
+  }
+
+  // 更新用户
+  public putAuth(auth: IAuth) {
+    this.fetching.auth = true;
+    this.handleAuthChange(this._httpService.put(this._authApiPath, auth));
+  }
+
+  // 获取配置
+  public getOptions() {
+    this.fetching.option = true;
+    this.handleOptionChange(this._httpService.get(this._optionApiPath));
+  }
+
+  // 更新配置
+  public putOptions(options: any) {
+    this.fetching.option = true;
+    this.handleOptionChange(this._httpService.put(this._optionApiPath, options));
+  }
+
+  ngOnInit() {
+    this.getOptions();
+    this.getUserAuth();
+  }
 }

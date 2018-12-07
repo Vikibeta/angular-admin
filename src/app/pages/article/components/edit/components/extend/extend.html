@@ -4,7 +4,7 @@
       <div class="article-extend" *ngFor="let extend of extends; let i = index">
         <div class="extend-key">
           <input type="text" 
-                 id="category_name"
+                 id="extend-key"
                  class="form-control"
                  placeholder="key" 
                  [(ngModel)]="extend.name"
@@ -13,7 +13,7 @@
         </div>
         <div class="extend-value">
           <input type="text" 
-                 id="category_name"
+                 id="extend-value"
                  class="form-control"
                  placeholder="value" 
                  [(ngModel)]="extend.value"
@@ -22,11 +22,14 @@
         </div>
         <div class="extend-del">
           <button class="btn btn-warning" (click)="delExtendItem(i)">
-            <i class="ion-trash-b"></i>
+            <i class="ion-md-trash"></i>
           </button>
         </div>
       </div>
-      <a [href]="" class="btn btn-default btn-sm btn-block" (click)="addExtendItem()">增加扩展</a>
+      <a [href]="" class="btn btn-default btn-sm btn-block btn-with-icon" (click)="addExtendItem()">
+        <i class="ion-md-add"></i>
+        <span>增加扩展</span>
+      </a>
     </div>
   </div>
 </form>

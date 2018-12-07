@@ -1,52 +1,72 @@
-import { Component, ElementRef, ViewEncapsulation } from '@angular/core';
+/**
+ * @file 登陆页面组件
+ * @module app/page/auth/component
+ * @author Surmon <https://github.com/surmon-china>
+ */
+
+import { Base64 } from 'js-base64';
 import { Router } from '@angular/router';
-import { AuthService } from './auth.service';
+import { Component, ViewChild, ElementRef, ViewEncapsulation, AfterViewChecked } from '@angular/core';
+
+import { SaHttpRequesterService } from '@app/services';
+import { TApiPath } from '@app/pages/pages.constants';
+import { TOKEN } from '@app/constants/auth';
+import * as API_PATH from '@app/constants/api';
 
 @Component({
-  selector: 'auth',
+  selector: 'page-auth',
   encapsulation: ViewEncapsulation.None,
   styles: [require('./auth.scss')],
   template: require('./auth.html')
 })
-export class Auth {
+export class AuthComponent implements AfterViewChecked {
 
-  public password:String;
-  public editMode:Boolean = false;
-  public slogans = ['Done is better than perfect.', 'Code wins arguments.', 'Move fast and break things.'];
-  public slogan:String = this.slogans[Math.floor(Math.random()*3)];
+  @ViewChild('pwdInput') input: ElementRef;
 
-  constructor(public elem:ElementRef, 
-              private _router: Router,
-              private _authService:AuthService) {}
+  private _apiPath: TApiPath = API_PATH.AUTH;
 
-  toEditMode(event:any) {
-    this.editMode = !this.editMode;
+  public password: string = '';
+  public editMode: boolean = false;
+  public slogans = [
+    'Done is better than perfect.',
+    '远离颠倒梦想，究竟涅槃',
+    // 'དཀར་གསལ་ཟླ་བ་ཤར་བྱུང་།, ཤར་ཕྱོགས་རི་བོའི་རྩེ་ནས།',
+    '应无所住，而生其心'
+  ];
+  public slogan: string = this.slogans[Math.floor(Math.random() * (this.slogans.length))];
+
+  constructor(private _router: Router, private _httpService: SaHttpRequesterService) {}
+
+  toEditMode() {
+    this.editMode = true;
   }
 
-  quitEdit(event:any) {
+  quitEdit() {
     this.editMode = false;
   }
 
-  onEnter(event:any) {
+  onEnter() {
     this.editMode = false;
-    if(!!this.password) {
+    if (this.password) {
       this.onSubmit();
     }
   }
 
   onSubmit() {
-    this._authService.getToken(this.password)
+    this._httpService
+    .post(this._apiPath, { password: Base64.encode(this.password) })
     .then(auth => {
-      if(auth.result.token) {
-        localStorage.setItem('id_token', auth.result.token);
+      if (auth.result.token) {
+        localStorage.setItem(TOKEN, auth.result.token);
         this._router.navigate(['/dashboard']);
       }
     })
-    .catch(error => {});
+    .catch(err => {
+      console.warn('登陆系统失败！', err);
+    });
   }
 
   ngAfterViewChecked() {
-    const input = this.elem.nativeElement.children[0].children[0].children[0].children[0];
-    input.focus();
+    return this.input && this.input.nativeElement && this.input.nativeElement.focus();
   }
 }

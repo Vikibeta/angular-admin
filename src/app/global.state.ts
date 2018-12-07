@@ -1,5 +1,11 @@
+/**
+ * @file App 全局状态
+ * @module app/global-state
+ * @author Surmon <https://github.com/surmon-china>
+ */
+
 import { Injectable } from '@angular/core';
-import { Subject }    from 'rxjs/Subject';
+import { Subject } from 'rxjs';
 
 @Injectable()
 export class GlobalState {
@@ -14,11 +20,9 @@ export class GlobalState {
   }
 
   notifyDataChanged(event, value) {
-
-    let current = this._data[event];
-    if (current !== value) {
+    const currentValue = this._data[event];
+    if (currentValue !== value) {
       this._data[event] = value;
-
       this._data.next({
         event: event,
         data: this._data[event]
@@ -27,15 +31,13 @@ export class GlobalState {
   }
 
   subscribe(event: string, callback: Function) {
-    let subscribers = this._subscriptions.get(event) || [];
+    const subscribers = this._subscriptions.get(event) || [];
     subscribers.push(callback);
-
     this._subscriptions.set(event, subscribers);
   }
 
   _onEvent(data: any) {
-    let subscribers = this._subscriptions.get(data['event']) || [];
-
+    const subscribers = this._subscriptions.get(data['event']) || [];
     subscribers.forEach((callback) => {
       callback.call(null, data['data']);
     });

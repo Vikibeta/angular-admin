@@ -1,150 +1,137 @@
-import { Component, ViewChild } from '@angular/core';
-import { FormGroup, AbstractControl, FormBuilder, Validators } from '@angular/forms';
+/**
+ * @file 分类页面组件
+ * @module app/page/article/component/category
+ * @author Surmon <https://github.com/surmon-china>
+ */
+
+import * as lodash from 'lodash';
 import { ModalDirective } from 'ngx-bootstrap';
-import { ArticleCategoryService } from './category.service';
+import { Component, ViewChild, OnInit } from '@angular/core';
+import { SaHttpRequesterService } from '@app/services';
+import { TApiPath, IFetching, IResponseData, TSelectedIds } from '@app/pages/pages.constants';
+import { ICategory, buildLevelCategories } from '@/app/pages/article/article.service';
+import * as API_PATH from '@app/constants/api';
 
 @Component({
-  selector: 'article-category',
+  selector: 'page-article-category',
   template: require('./category.html'),
 })
-export class ArticleCategory {
+export class ArticleCategoryComponent implements OnInit {
 
   @ViewChild('delModal') delModal: ModalDirective;
+  @ViewChild('editCategoryForm') editCategoryForm;
 
-  public categories = { data: [] };
-  public addCategoryState = { ing: false, success: false };
-  public delCategory:any;
-  public editCategory:any;
-  public delCategories:any;
+  private _apiPath: TApiPath = API_PATH.CATEGORY;
 
-  constructor(private _articleCategoryService: ArticleCategoryService) {}
+  public categories: IResponseData<ICategory> = {
+    data: []
+  };
+  public fetching: IFetching = {
+    get: false,
+    post: false
+  };
+  public todoDelCategory: ICategory;
+  public todoEditCategory: ICategory;
+  public todoDelCategories: TSelectedIds;
+
+  constructor(private _httpService: SaHttpRequesterService) {}
 
   ngOnInit() {
-    this._getCategories();
+    this.getCategories();
   }
 
-  // 分类级别递归排序
-  private _categoryLevelBuild = () => {
-
-    // 初始化数据
-    let categories = Array.from(this.categories.data);
-    let toDoDeletes = [];
-
-    // 级别数据构造
-    categories.forEach(cate => {
-      // 找到问题数据并添加标记
-      cate.unrepaired = (!!cate.pid && !categories.find(c => Object.is(cate.pid, c._id)))
-      categories.forEach(c => {
-        if(Object.is(cate.pid, c._id)) {
-          c.children = c.children || [];
-          c.children.push(cate);
-          toDoDeletes.push(cate);
-        }
-      })
-    });
-
-    // 扁平数据构造（同时添加级别标示）
-    const levelBuildRun = cates => {
-      let newCategories = [];
-      const levelBuildOptimize = (cates, level) => {
-        cates.forEach(c => {
-          c.level = level;
-          newCategories.push(c);
-          if(c.children && c.children.length) levelBuildOptimize(c.children, level + 1);
-        })
-      }
-      levelBuildOptimize(cates, 0);
-      return newCategories;
-    }
-
-    // 开始执行
-    this.categories.data = levelBuildRun(categories.filter(c => toDoDeletes.indexOf(c) == -1));
-  };
-
-  // 获取分类
-  private _getCategories() {
-    this._articleCategoryService
-    .getCategories()
-    .then(categories => {
-      this.categories = categories.result;
-      this._categoryLevelBuild();
-    })
-    .catch(error => {});
-  }
-
-  // 添加分类
-  private _addCategory(category) {
-    this.addCategoryState = { ing: true, success: false };
-    this._articleCategoryService
-    .addCategory(category)
-    .then(_category => {
-      this._getCategories();
-      this.addCategoryState = { ing: false, success: !!_category.code };
-    })
-    .catch(error => {});
+  // 重置编辑数据
+  public resetEditForm() {
+    this.todoEditCategory = null;
+    this.editCategoryForm.resetEditForm();
   }
 
   // 修改分类
-  private _putCategory(category) {
-    this.editCategory = category;
-  }
-
-  // 确认修改分类
-  private _doPutCategory(category) {
-    this.addCategoryState = { ing: true, success: false };
-    this._articleCategoryService
-    .putCategory(Object.assign(this.editCategory, category))
-    .then(category => {
-      this._getCategories();
-      this.editCategory = null;
-      this.addCategoryState = { ing: false, success: !!category.code };
-    })
-    .catch(error => {
-      this.addCategoryState = { ing: false, success: false };
-    });
+  public editCategory(category: ICategory) {
+    this.todoEditCategory = lodash.cloneDeep(category);
   }
 
   // 删除分类弹窗
-  private _delCategory(category) {
-    this.delCategory = category;
+  public delCategory(category: ICategory) {
+    this.todoDelCategory = lodash.cloneDeep(category);
     this.delModal.show();
   }
 
   // 分类弹窗取消
-  private _canceldDelCategory(category) {
-    this.delCategory = null;
+  public canceldDelCategory() {
+    this.todoDelCategory = null;
     this.delModal.hide();
   }
 
-  // 确认删除分类
-  private _doDelCategory() {
-    this._articleCategoryService.delCategory(this.delCategory._id)
-    .then(category => {
-      this.delCategory = null;
-      this.delModal.hide();
-      this._getCategories();
+  // 批量删除分类
+  public delCategories(categories: TSelectedIds) {
+    this.todoDelCategories = categories;
+    this.todoDelCategory = null;
+    this.delModal.show();
+  }
+
+  // 添加或更新的相应处理
+  public handlePostRequest(request: Promise<any>) {
+    request.then(_ => {
+      this.getCategories();
+      this.resetEditForm();
+      this.fetching.post = false;
+    }).catch(_ => {
+      this.fetching.post = false;
+    });
+  }
+
+  // 获取分类
+  public getCategories() {
+    this.fetching.get = true;
+    this._httpService.get(this._apiPath, { per_page: 100 })
+    .then(categories => {
+      this.categories = categories.result;
+      this.fetching.get = false;
+      this.categories.data = buildLevelCategories(this.categories.data);
     })
-    .catch(error => {
+    .catch(_ => {
+      this.fetching.get = false;
+    });
+  }
+
+  // 添加分类
+  public addCategory(category: ICategory) {
+    this.fetching.post = true;
+    const request = this._httpService.post(this._apiPath, category);
+    this.handlePostRequest(request);
+  }
+
+  // 修改分类
+  public doEditCategory(category: ICategory) {
+    this.fetching.post = true;
+    const newCategory = Object.assign(this.todoEditCategory, category);
+    const request = this._httpService.put(`${ this._apiPath }/${ newCategory._id }`, newCategory);
+    this.handlePostRequest(request);
+  }
+
+  // 删除分类
+  public doDelCategory() {
+    this._httpService.delete(`${ this._apiPath }/${ this.todoDelCategory._id }`)
+    .then(_ => {
+      this.todoDelCategory = null;
+      this.delModal.hide();
+      this.getCategories();
+    })
+    .catch(_ => {
       this.delModal.hide();
     });
   }
 
-  // 批量删除分类
-  private _delCategories(categories) {
-    this.delCategories = categories;
-    this.delCategory = null;
-    this.delModal.show();
-  }
-
-  // 确认批量删除
-  private _doDelCategories() {
-    this._articleCategoryService.delCategories(this.delCategories)
-    .then(categories => {
-      this.delCategories = null;
+  // 批量删除
+  public doDelCategories() {
+    this._httpService.delete(this._apiPath, { categories: this.todoDelCategories })
+    .then(_ => {
+      this.todoDelCategories = null;
       this.delModal.hide();
-      this._getCategories();
+      this.getCategories();
     })
-    .catch(error => {
+    .catch(_ => {
       this.delModal.hide();
     });
   }

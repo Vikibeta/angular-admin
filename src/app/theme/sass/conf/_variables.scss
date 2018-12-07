@@ -21,7 +21,7 @@ $large-card-height: 974px;
 $default-animation-duration: 0.2s;
 $default-animation-style: ease-out;
 
-$assets-root: 'assets/';
+$assets-root: '/assets/';
 $images-root: $assets-root + 'img/';
 $fonts-root: $assets-root + 'fonts/';
 $font-thin: 100;
@@ -39,3 +39,4 @@ $github-color: #6b6b6b;
 $stackoverflow-color: #2F96E8;
 $dribble-color: #F26798;
 $behace-color: #0093FA;
+$black-color: #000000;
